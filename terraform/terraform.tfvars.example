@@ -1,0 +1,7 @@
+hcloud_token   = "votre_token_hetzner_ici"
+ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... ton@email"
+ssh_key_name   = "k3s-key"
+location       = "nbg1"
+server_type    = "cx22"
+os_image       = "ubuntu-24.04"
+cluster_name   = "k3s"
