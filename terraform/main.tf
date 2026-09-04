@@ -1,5 +1,5 @@
 locals {
-  # Adresses IP statiques (adapte selon ton réseau)
+  # Adresses IP statiques → adapte selon ton réseau local
   server_ip = "192.168.1.110"
   agent_ips = ["192.168.1.111", "192.168.1.112"]
   gateway   = "192.168.1.1"
@@ -12,6 +12,12 @@ resource "proxmox_virtual_environment_vm" "server" {
   node_name   = var.proxmox_node
   description = "k3s control-plane"
   tags        = ["k3s", "server"]
+
+  # Clone depuis un template cloud-init existant (recommandé)
+  clone {
+    vm_id = var.template_id
+    full  = true
+  }
 
   agent {
     enabled = true
@@ -28,7 +34,6 @@ resource "proxmox_virtual_environment_vm" "server" {
 
   disk {
     datastore_id = var.vm_storage
-    file_id      = proxmox_virtual_environment_file.cloud_image.id
     interface    = "scsi0"
     size         = var.disk_size
     discard      = "on"
@@ -48,10 +53,8 @@ resource "proxmox_virtual_environment_vm" "server" {
 
     user_account {
       username = "ubuntu"
-      keys     = [var.ssh_public_key]
+      keys     = [trimspace(var.ssh_public_key)]
     }
-
-    # Ou utilise un snippet cloud-init plus avancé si besoin
   }
 
   operating_system {
@@ -59,6 +62,12 @@ resource "proxmox_virtual_environment_vm" "server" {
   }
 
   serial_device {}
+
+  startup {
+    order      = 1
+    up_delay   = 30
+    down_delay = 30
+  }
 }
 
 # ====================== Workers ======================
@@ -67,8 +76,13 @@ resource "proxmox_virtual_environment_vm" "agents" {
 
   name        = "${var.cluster_name}-agent-${count.index + 1}"
   node_name   = var.proxmox_node
-  description = "k3s worker"
+  description = "k3s worker node"
   tags        = ["k3s", "agent"]
+
+  clone {
+    vm_id = var.template_id
+    full  = true
+  }
 
   agent {
     enabled = true
@@ -85,7 +99,6 @@ resource "proxmox_virtual_environment_vm" "agents" {
 
   disk {
     datastore_id = var.vm_storage
-    file_id      = proxmox_virtual_environment_file.cloud_image.id
     interface    = "scsi0"
     size         = var.disk_size
     discard      = "on"
@@ -105,7 +118,7 @@ resource "proxmox_virtual_environment_vm" "agents" {
 
     user_account {
       username = "ubuntu"
-      keys     = [var.ssh_public_key]
+      keys     = [trimspace(var.ssh_public_key)]
     }
   }
 
@@ -114,18 +127,4 @@ resource "proxmox_virtual_environment_vm" "agents" {
   }
 
   serial_device {}
-}
-
-# Image cloud (uploadée une seule fois)
-# Tu dois d'abord télécharger l'image Ubuntu cloud sur ton Proxmox
-# ou utiliser un template existant.
-resource "proxmox_virtual_environment_file" "cloud_image" {
-  content_type = "iso"          # ou "import" selon ta version
-  datastore_id = "local"        # adapte
-  node_name    = var.proxmox_node
-
-  source_file {
-    path = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-    # Ou chemin local si tu préfères uploader manuellement
-  }
 }

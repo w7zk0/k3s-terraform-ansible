@@ -1,19 +1,22 @@
-# Connexion Proxmox
+# Connexion à Proxmox
 proxmox_endpoint   = "https://192.168.1.100:8006/"
 proxmox_username   = "root@pam"
 proxmox_password   = "ton_mot_de_passe"
 proxmox_insecure   = true
 proxmox_node       = "pve"
 
-# Template / Storage
-template_name      = "ubuntu-24.04-cloud"   # si tu utilises un template existant
+# Template cloud-init (obligatoire)
+# Crée d'abord un template Ubuntu 24.04 cloud-init sur Proxmox (VMID 9000 par exemple)
+template_id        = 9000
+
+# Storage & réseau
 vm_storage         = "local-lvm"
 bridge             = "vmbr0"
 
-# Clé SSH
+# Clé SSH publique
 ssh_public_key     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... ton@email"
 
-# Ressources
+# Dimensionnement
 cluster_name       = "k3s"
 server_cores       = 2
 server_memory      = 4096

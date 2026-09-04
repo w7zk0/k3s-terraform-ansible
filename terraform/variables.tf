@@ -22,25 +22,24 @@ variable "proxmox_insecure" {
 }
 
 variable "proxmox_ssh_username" {
-  description = "Utilisateur SSH pour le provider (généralement root)"
+  description = "Utilisateur SSH pour le provider"
   type        = string
   default     = "root"
 }
 
 variable "proxmox_node" {
-  description = "Nom du nœud Proxmox sur lequel créer les VMs"
+  description = "Nom du nœud Proxmox"
   type        = string
   default     = "pve"
 }
 
-variable "template_name" {
-  description = "Nom du template cloud-init Ubuntu (doit exister sur le nœud)"
-  type        = string
-  default     = "ubuntu-24.04-cloud"
+variable "template_id" {
+  description = "VMID du template cloud-init Ubuntu (ex: 9000)"
+  type        = number
 }
 
 variable "vm_storage" {
-  description = "Storage Proxmox pour les disques (ex: local-lvm)"
+  description = "Storage Proxmox pour les disques"
   type        = string
   default     = "local-lvm"
 }
@@ -68,7 +67,7 @@ variable "server_cores" {
 }
 
 variable "server_memory" {
-  description = "Mémoire en Mo"
+  description = "Mémoire en Mo pour le control-plane"
   type        = number
   default     = 4096
 }
@@ -79,7 +78,7 @@ variable "agent_cores" {
 }
 
 variable "agent_memory" {
-  description = "Mémoire en Mo"
+  description = "Mémoire en Mo pour les workers"
   type        = number
   default     = 4096
 }
