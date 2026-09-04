@@ -1,0 +1,38 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Ansible
+*.retry
+inventory/hosts.yml
+!inventory/hosts.yml.example
+*.vault
+
+# Secrets & keys
+*.pem
+*.key
+id_rsa*
+*.pub
+!*.pub.example
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# kubeconfig
+kubeconfig
+*.kubeconfig
