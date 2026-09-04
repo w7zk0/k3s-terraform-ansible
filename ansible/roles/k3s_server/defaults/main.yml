@@ -1,0 +1,5 @@
+---
+# Defaults for k3s_server role
+k3s_version: "v1.31.4+k3s1"
+k3s_server_args:
+  - "--write-kubeconfig-mode=644"

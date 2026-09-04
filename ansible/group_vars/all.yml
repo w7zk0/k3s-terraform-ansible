@@ -1,0 +1,31 @@
+---
+# Variables globales du cluster
+
+k3s_version: "v1.31.4+k3s1"          # Version de k3s (mettre à jour selon besoin)
+
+# Options k3s server
+k3s_server_args:
+  - "--write-kubeconfig-mode=644"
+  - "--tls-san={{ ansible_host }}"   # Important pour l'accès externe
+  # - "--disable=traefik"            # Décommente si tu veux installer ton propre ingress
+
+# Options k3s agent
+k3s_agent_args: []
+
+# Réseau
+k3s_flannel_iface: "eth0"            # Adapter selon ton provider
+
+# Sécurité / common
+timezone: "Europe/Paris"
+common_packages:
+  - curl
+  - wget
+  - vim
+  - htop
+  - net-tools
+  - jq
+  - ca-certificates
+  - apt-transport-https
+
+# fail2ban (optionnel)
+enable_fail2ban: true

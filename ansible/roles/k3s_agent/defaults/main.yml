@@ -1,0 +1,4 @@
+---
+# Defaults for k3s_agent role
+k3s_version: "v1.31.4+k3s1"
+k3s_agent_args: []
