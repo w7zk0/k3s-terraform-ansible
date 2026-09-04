@@ -1,12 +1,12 @@
 # k3s-terraform-ansible
 
-**Cluster Kubernetes minimal (k3s) entièrement automatisé avec Terraform + Ansible.**
+**Cluster Kubernetes minimal (k3s) entièrement automatisé avec Terraform + Ansible sur Proxmox.**
 
-Projet de portfolio sysadmin / DevOps.
+Projet de portfolio sysadmin / DevOps / Homelab.
 
 Ce dépôt permet de provisionner et configurer un cluster Kubernetes léger (k3s) de façon 100 % automatisée :
 
-- **Terraform** : provisionne l'infrastructure (VMs)
+- **Terraform** : crée les VMs sur **Proxmox**
 - **Ansible** : installe et configure k3s (server + agents)
 
 ---
@@ -32,22 +32,21 @@ Ce dépôt permet de provisionner et configurer un cluster Kubernetes léger (k3
 - 2 nodes `agent` (workers)
 - CNI : Flannel (par défaut k3s)
 - Ingress : Traefik (inclus dans k3s)
-- Compatible avec un usage lab / démo / portfolio
 
 ---
 
 ## Prérequis
 
+### Côté Proxmox
+- Un hyperviseur Proxmox fonctionnel
+- Un **template cloud-init Ubuntu 24.04** (VMID à renseigner)
+- Bridge réseau (généralement `vmbr0`)
+- Accès API (utilisateur + mot de passe ou token)
+
 ### Outils locaux
 - Terraform >= 1.5
 - Ansible >= 2.14
-- `ssh` + clé SSH
-- Compte cloud (exemple fourni pour **Hetzner Cloud**)
-
-### Côté infrastructure
-- 3 VMs (minimum 2 vCPU / 2 Go RAM recommandé pour le server)
-- Accès SSH root ou utilisateur sudo
-- Ports ouverts : 22, 6443, 10250, et flannel (UDP 8472)
+- Clé SSH
 
 ---
 
@@ -57,11 +56,8 @@ Ce dépôt permet de provisionner et configurer un cluster Kubernetes léger (k3
 .
 ├── ansible/
 │   ├── inventory/
-│   │   └── hosts.yml.example
 │   ├── group_vars/
-│   │   └── all.yml
 │   ├── playbooks/
-│   │   └── site.yml
 │   └── roles/
 │       ├── common/
 │       ├── k3s_server/
@@ -73,7 +69,6 @@ Ce dépôt permet de provisionner et configurer un cluster Kubernetes léger (k3
 │   ├── providers.tf
 │   └── terraform.tfvars.example
 ├── docs/
-│   └── architecture.md
 ├── .gitignore
 └── README.md
 ```
@@ -82,50 +77,49 @@ Ce dépôt permet de provisionner et configurer un cluster Kubernetes léger (k3
 
 ## Déploiement rapide
 
-### 1. Cloner le dépôt
+### 1. Préparer un template cloud-init sur Proxmox
 
-```bash
-git clone https://github.com/w7zk0/k3s-terraform-ansible.git
-cd k3s-terraform-ansible
-```
+Crée une VM Ubuntu 24.04 cloud-init, installe `qemu-guest-agent`, convertis-la en template, et note son **VMID** (ex: 9000).
 
-### 2. Provisionner l'infrastructure (Terraform)
+### 2. Configurer Terraform
 
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# Édite terraform.tfvars avec tes tokens / clés SSH
+# Édite avec tes infos Proxmox + template_id + clé SSH
+```
 
+### 3. Provisionner les VMs
+
+```bash
 terraform init
 terraform plan
 terraform apply
 ```
 
-Les outputs te donneront les IPs des machines.
-
-### 3. Préparer l'inventaire Ansible
+### 4. Configurer l'inventaire Ansible
 
 ```bash
 cd ../ansible
 cp inventory/hosts.yml.example inventory/hosts.yml
-# Remplis avec les IPs sorties par Terraform
 ```
 
-### 4. Lancer le déploiement k3s
+Remplis avec les IPs (par défaut `192.168.1.110` / `.111` / `.112` — modifie dans `terraform/main.tf` si besoin).
+
+**Important** : l'utilisateur est `ubuntu` (pas root).
+
+### 5. Lancer le déploiement k3s
 
 ```bash
 ansible-playbook -i inventory/hosts.yml playbooks/site.yml
 ```
 
-### 5. Récupérer le kubeconfig
+### 6. Récupérer le kubeconfig
 
 ```bash
-# Sur le node server
-scp root@<IP_SERVER>:/etc/rancher/k3s/k3s.yaml ~/.kube/config
-# Remplace 127.0.0.1 par l'IP publique du server
+scp ubuntu@192.168.1.110:/etc/rancher/k3s/k3s.yaml ~/.kube/config
+# Remplace 127.0.0.1 par l'IP du server
 ```
-
-Puis :
 
 ```bash
 kubectl get nodes
@@ -134,51 +128,34 @@ kubectl get pods -A
 
 ---
 
-## Fonctionnalités incluses
-
-- Installation automatisée de k3s (server + agents)
-- Configuration sécurisée de base (disable cloud provider, etc.)
-- Rôle `common` : updates, timezone, packages de base, fail2ban optionnel
-- Génération automatique du token et jointure des agents
-- Support multi-nodes propre
-- Idempotent (rejouable)
-
----
-
 ## Personnalisation
 
-Tu peux facilement :
-- Ajouter des nodes agents
-- Changer la version de k3s
-- Activer/désactiver Traefik, ServiceLB, etc.
-- Ajouter un role pour MetalLB, Longhorn, monitoring (Prometheus), etc.
-
-Voir `ansible/group_vars/all.yml` et les variables des rôles.
+- Change les IPs dans `terraform/main.tf` (bloc `locals`)
+- Ajuste CPU / RAM / disque dans `terraform.tfvars`
+- Version de k3s dans `ansible/group_vars/all.yml`
 
 ---
 
-## Sécurité (bonnes pratiques appliquées)
+## Sécurité
 
-- Pas de secrets en clair dans le dépôt
-- Utilisation de variables Ansible / Terraform
-- Recommandation d'utiliser un bastion ou WireGuard en production
-- k3s tournant avec les options de sécurité raisonnables pour un lab
+- Pas de secrets dans le dépôt
+- Utilisateur `ubuntu` + clé SSH
+- fail2ban activable
+- Recommandé : restreindre l'accès API Proxmox et le port 6443
 
 ---
 
-## Améliorations possibles (idées portfolio)
+## Améliorations possibles
 
-- [ ] Ajouter un module Terraform pour Hetzner / AWS / Proxmox
-- [ ] Intégrer ArgoCD (GitOps)
+- [ ] Support multi-nœuds Proxmox
+- [ ] IP flottante / MetalLB
 - [ ] Stack monitoring (Prometheus + Grafana)
-- [ ] Backup automatisé (Velero ou k3s etcd snapshots)
-- [ ] CI (GitHub Actions) qui valide Terraform + Ansible
-- [ ] Hardening CIS sur les nodes
+- [ ] GitOps (ArgoCD / Flux)
+- [ ] Hardening CIS
+- [ ] Snapshot automatique des VMs
 
 ---
 
 ## Auteur
 
-Portfolio sysadmin — automatisation, Linux, Kubernetes, Infrastructure as Code.
-
-N'hésite pas à forker, améliorer et proposer des PR.
+Portfolio sysadmin — Homelab, Proxmox, Kubernetes, Automation, Infrastructure as Code.
