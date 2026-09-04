@@ -1,118 +1,131 @@
-# Clé SSH
-resource "hcloud_ssh_key" "default" {
-  name       = var.ssh_key_name
-  public_key = var.ssh_public_key
+locals {
+  # Adresses IP statiques (adapte selon ton réseau)
+  server_ip = "192.168.1.110"
+  agent_ips = ["192.168.1.111", "192.168.1.112"]
+  gateway   = "192.168.1.1"
+  cidr      = 24
 }
 
-# Network privé (optionnel mais recommandé)
-resource "hcloud_network" "k3s" {
-  name     = "${var.cluster_name}-net"
-  ip_range = "10.0.0.0/16"
-}
-
-resource "hcloud_network_subnet" "k3s" {
-  network_id   = hcloud_network.k3s.id
-  type         = "cloud"
-  network_zone = "eu-central"
-  ip_range     = "10.0.1.0/24"
-}
-
-# Control Plane (Server)
-resource "hcloud_server" "server" {
+# ====================== Control Plane ======================
+resource "proxmox_virtual_environment_vm" "server" {
   name        = "${var.cluster_name}-server"
-  server_type = var.server_type
-  image       = var.os_image
-  location    = var.location
-  ssh_keys    = [hcloud_ssh_key.default.id]
+  node_name   = var.proxmox_node
+  description = "k3s control-plane"
+  tags        = ["k3s", "server"]
 
-  labels = {
-    role = "server"
+  agent {
+    enabled = true
   }
 
-  public_net {
-    ipv4_enabled = true
-    ipv6_enabled = false
+  cpu {
+    cores = var.server_cores
+    type  = "host"
   }
 
-  network {
-    network_id = hcloud_network.k3s.id
-    ip         = "10.0.1.10"
+  memory {
+    dedicated = var.server_memory
   }
 
-  user_data = <<-EOF
-    #cloud-config
-    package_update: true
-    package_upgrade: true
-  EOF
+  disk {
+    datastore_id = var.vm_storage
+    file_id      = proxmox_virtual_environment_file.cloud_image.id
+    interface    = "scsi0"
+    size         = var.disk_size
+    discard      = "on"
+  }
+
+  network_device {
+    bridge = var.bridge
+  }
+
+  initialization {
+    ip_config {
+      ipv4 {
+        address = "${local.server_ip}/${local.cidr}"
+        gateway = local.gateway
+      }
+    }
+
+    user_account {
+      username = "ubuntu"
+      keys     = [var.ssh_public_key]
+    }
+
+    # Ou utilise un snippet cloud-init plus avancé si besoin
+  }
+
+  operating_system {
+    type = "l26"
+  }
+
+  serial_device {}
 }
 
-# Workers (Agents)
-resource "hcloud_server" "agents" {
-  count       = 2
+# ====================== Workers ======================
+resource "proxmox_virtual_environment_vm" "agents" {
+  count = 2
+
   name        = "${var.cluster_name}-agent-${count.index + 1}"
-  server_type = var.server_type
-  image       = var.os_image
-  location    = var.location
-  ssh_keys    = [hcloud_ssh_key.default.id]
+  node_name   = var.proxmox_node
+  description = "k3s worker"
+  tags        = ["k3s", "agent"]
 
-  labels = {
-    role = "agent"
+  agent {
+    enabled = true
   }
 
-  public_net {
-    ipv4_enabled = true
-    ipv6_enabled = false
+  cpu {
+    cores = var.agent_cores
+    type  = "host"
   }
 
-  network {
-    network_id = hcloud_network.k3s.id
-    ip         = "10.0.1.${20 + count.index}"
+  memory {
+    dedicated = var.agent_memory
   }
 
-  user_data = <<-EOF
-    #cloud-config
-    package_update: true
-    package_upgrade: true
-  EOF
+  disk {
+    datastore_id = var.vm_storage
+    file_id      = proxmox_virtual_environment_file.cloud_image.id
+    interface    = "scsi0"
+    size         = var.disk_size
+    discard      = "on"
+  }
+
+  network_device {
+    bridge = var.bridge
+  }
+
+  initialization {
+    ip_config {
+      ipv4 {
+        address = "${local.agent_ips[count.index]}/${local.cidr}"
+        gateway = local.gateway
+      }
+    }
+
+    user_account {
+      username = "ubuntu"
+      keys     = [var.ssh_public_key]
+    }
+  }
+
+  operating_system {
+    type = "l26"
+  }
+
+  serial_device {}
 }
 
-# Firewall basique
-resource "hcloud_firewall" "k3s" {
-  name = "${var.cluster_name}-fw"
+# Image cloud (uploadée une seule fois)
+# Tu dois d'abord télécharger l'image Ubuntu cloud sur ton Proxmox
+# ou utiliser un template existant.
+resource "proxmox_virtual_environment_file" "cloud_image" {
+  content_type = "iso"          # ou "import" selon ta version
+  datastore_id = "local"        # adapte
+  node_name    = var.proxmox_node
 
-  rule {
-    direction = "in"
-    protocol  = "tcp"
-    port      = "22"
-    source_ips = ["0.0.0.0/0"]
+  source_file {
+    path = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+    # Ou chemin local si tu préfères uploader manuellement
   }
-
-  rule {
-    direction = "in"
-    protocol  = "tcp"
-    port      = "6443"
-    source_ips = ["0.0.0.0/0"]
-  }
-
-  rule {
-    direction = "in"
-    protocol  = "tcp"
-    port      = "10250"
-    source_ips = ["0.0.0.0/0"]
-  }
-
-  rule {
-    direction = "in"
-    protocol  = "udp"
-    port      = "8472"
-    source_ips = ["0.0.0.0/0"]
-  }
-}
-
-resource "hcloud_firewall_attachment" "k3s" {
-  firewall_id = hcloud_firewall.k3s.id
-  server_ids = concat(
-    [hcloud_server.server.id],
-    hcloud_server.agents[*].id
-  )
 }
